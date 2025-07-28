@@ -55,7 +55,11 @@ export const createUser = async (
 
     // Create user
     const user = await prisma.user.create({
-      data: validatedData,
+      data: {
+        ...validatedData,
+        phone: validatedData.phone ?? null,
+        address: validatedData.address ?? null,
+      },
     });
 
     res.status(201).json({
@@ -203,7 +207,11 @@ export const updateUser = async (
     // Update user
     const user = await prisma.user.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        phone: validatedData.phone ?? null,
+        address: validatedData.address ?? null,
+      },
     });
 
     res.json({
