@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -54,12 +54,15 @@ export const createUser = async (
     }
 
     // Create user
+    const userData: any = {
+      ...validatedData,
+      phone: validatedData.phone ?? null,
+    };
+    if (typeof validatedData.address !== "undefined") {
+      userData.address = validatedData.address;
+    }
     const user = await prisma.user.create({
-      data: {
-        ...validatedData,
-        phone: validatedData.phone ?? null,
-        address: validatedData.address ?? null,
-      },
+      data: userData,
     });
 
     res.status(201).json({
@@ -205,13 +208,16 @@ export const updateUser = async (
     }
 
     // Update user
+    const updateData: any = {
+      ...validatedData,
+      phone: validatedData.phone ?? null,
+    };
+    if (typeof validatedData.address !== "undefined") {
+      updateData.address = validatedData.address;
+    }
     const user = await prisma.user.update({
       where: { id },
-      data: {
-        ...validatedData,
-        phone: validatedData.phone ?? null,
-        address: validatedData.address ?? null,
-      },
+      data: updateData,
     });
 
     res.json({
