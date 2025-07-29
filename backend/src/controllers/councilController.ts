@@ -15,7 +15,7 @@ const getCouncilSchema = z.object({
  * @param res - Express response object
  */
 export const getCouncils = async (
-  req: Request,
+  _req: Request,
   res: Response
 ): Promise<void> => {
   try {
@@ -50,12 +50,12 @@ export const getCouncils = async (
  * @param res - Express response object
  */
 export const getCouncilById = async (
-  req: Request,
+  _req: Request,
   res: Response
 ): Promise<void> => {
   try {
     // Validate request params
-    const { id } = getCouncilSchema.parse(req.params);
+    const { id } = getCouncilSchema.parse(res.locals.req.params);
 
     const council = await prisma.council.findUnique({
       where: { id },
