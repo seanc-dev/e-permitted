@@ -61,6 +61,7 @@ export const PermitSubmissionPage = () => {
     reset,
   } = useForm<PermitFormData>({
     resolver: zodResolver(permitFormSchema),
+    mode: "onBlur",
   });
 
   const onSubmit = async (data: PermitFormData) => {
@@ -78,15 +79,17 @@ export const PermitSubmissionPage = () => {
           councilId: "kcdc-council-id", // TODO: Get from config
           permitTypeId: data.permitType,
           data: {
-            ...data,
-            submittedAt: new Date().toISOString(),
+            sample: {
+              ...data,
+            },
+            inverse: false,
           },
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
-        setApplicationId(result.data.id);
+        setApplicationId(result.data.reference);
         setSubmitSuccess(true);
         reset();
       } else {
@@ -170,8 +173,11 @@ export const PermitSubmissionPage = () => {
 
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <label className="form-label">First Name</label>
+              <label htmlFor="firstName" className="form-label">
+                First Name
+              </label>
               <input
+                id="firstName"
                 type="text"
                 {...register("firstName")}
                 className="form-input"
@@ -183,8 +189,11 @@ export const PermitSubmissionPage = () => {
             </div>
 
             <div>
-              <label className="form-label">Last Name</label>
+              <label htmlFor="lastName" className="form-label">
+                Last Name
+              </label>
               <input
+                id="lastName"
                 type="text"
                 {...register("lastName")}
                 className="form-input"
@@ -196,8 +205,11 @@ export const PermitSubmissionPage = () => {
             </div>
 
             <div>
-              <label className="form-label">Email Address</label>
+              <label htmlFor="email" className="form-label">
+                Email Address
+              </label>
               <input
+                id="email"
                 type="email"
                 {...register("email")}
                 className="form-input"
@@ -209,8 +221,11 @@ export const PermitSubmissionPage = () => {
             </div>
 
             <div>
-              <label className="form-label">Phone Number</label>
+              <label htmlFor="phone" className="form-label">
+                Phone Number
+              </label>
               <input
+                id="phone"
                 type="tel"
                 {...register("phone")}
                 className="form-input"
@@ -232,8 +247,11 @@ export const PermitSubmissionPage = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="form-label">Street Address</label>
+              <label htmlFor="street" className="form-label">
+                Street Address
+              </label>
               <input
+                id="street"
                 type="text"
                 {...register("address.street")}
                 className="form-input"
@@ -246,8 +264,11 @@ export const PermitSubmissionPage = () => {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="form-label">City</label>
+                <label htmlFor="city" className="form-label">
+                  City
+                </label>
                 <input
+                  id="city"
                   type="text"
                   {...register("address.city")}
                   className="form-input"
@@ -259,8 +280,11 @@ export const PermitSubmissionPage = () => {
               </div>
 
               <div>
-                <label className="form-label">Postal Code</label>
+                <label htmlFor="postalCode" className="form-label">
+                  Postal Code
+                </label>
                 <input
+                  id="postalCode"
                   type="text"
                   {...register("address.postalCode")}
                   className="form-input"
@@ -285,8 +309,14 @@ export const PermitSubmissionPage = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="form-label">Permit Type</label>
-              <select {...register("permitType")} className="form-input">
+              <label htmlFor="permitType" className="form-label">
+                Permit Type
+              </label>
+              <select
+                id="permitType"
+                {...register("permitType")}
+                className="form-input"
+              >
                 <option value="">Select a permit type</option>
                 {permitTypes.map((type) => (
                   <option key={type.id} value={type.id}>
@@ -300,8 +330,11 @@ export const PermitSubmissionPage = () => {
             </div>
 
             <div>
-              <label className="form-label">Project Description</label>
+              <label htmlFor="description" className="form-label">
+                Project Description
+              </label>
               <textarea
+                id="description"
                 {...register("description")}
                 className="form-input"
                 rows={4}

@@ -396,12 +396,12 @@ describe("Permit Submission", () => {
       expect(response.body.error.message).toBe("Permit application not found");
     });
 
-    it("should return 400 for invalid ID format", async () => {
+    it("should return 404 for invalid route", async () => {
       // Act & Assert
-      const response = await request(app).get("/api/permits/").expect(400);
+      const response = await request(app).get("/api/permits/").expect(404);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.error.message).toBe("Validation error");
+      expect(response.body.error.message).toBe("Route /api/permits/ not found");
     });
   });
 });

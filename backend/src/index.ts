@@ -44,7 +44,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({
     status: "OK",
     timestamp: new Date().toISOString(),
@@ -61,11 +61,13 @@ app.use("/api/users", userRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server
-app.listen(port, () => {
-  console.log(`🚀 E-Permitted API server running on port ${port}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🔗 Health check: http://localhost:${port}/health`);
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== "test") {
+  app.listen(port, () => {
+    console.log(`🚀 E-Permitted API server running on port ${port}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`🔗 Health check: http://localhost:${port}/health`);
+  });
+}
 
 export default app;

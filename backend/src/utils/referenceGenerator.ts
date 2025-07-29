@@ -30,7 +30,7 @@ export const generateReference = async (): Promise<string> => {
     const match = latestRef.reference.match(
       new RegExp(`${prefix}-${year}-(\\d+)`)
     );
-    if (match) {
+    if (match && match[1]) {
       sequence = parseInt(match[1], 10) + 1;
     }
   }
