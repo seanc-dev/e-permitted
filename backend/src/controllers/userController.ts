@@ -26,6 +26,64 @@ const getUserSchema = z.object({
 });
 
 /**
+ * Get current user profile (authenticated user)
+ * @param req - Express request object
+ * @param res - Express response object
+ */
+export const getUserProfile = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        role: true,
+        applications: {
+          include: {
+            council: true,
+            permitType: true,
+          },
+          orderBy: {
+            submittedAt: "desc",
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: "User not found",
+      });
+      return;
+    }
+
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user;
+
+    res.json({
+      success: true,
+      user: userWithoutPassword,
+    });
+  } catch (error) {
+    console.error("Error getting user profile:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get user profile",
+    });
+  }
+};
+
+/**
  * Create a new user
  * @param req - Express request object
  * @param res - Express response object

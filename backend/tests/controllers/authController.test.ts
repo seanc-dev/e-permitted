@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 describe("User Registration", () => {
   beforeEach(async () => {
-    // Clean up test data
+    // Clean up test data in correct order to avoid foreign key violations
     await prisma.userSession.deleteMany();
     await prisma.passwordReset.deleteMany();
     await prisma.application.deleteMany();
@@ -155,7 +155,7 @@ describe("User Registration", () => {
 
 describe("User Login", () => {
   beforeEach(async () => {
-    // Clean up test data
+    // Clean up test data in correct order to avoid foreign key violations
     await prisma.userSession.deleteMany();
     await prisma.passwordReset.deleteMany();
     await prisma.application.deleteMany();
