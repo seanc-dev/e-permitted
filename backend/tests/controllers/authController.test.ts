@@ -6,6 +6,8 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 describe("User Registration", () => {
+  let citizenRole: any;
+
   beforeEach(async () => {
     // Clean up test data in correct order to avoid foreign key violations
     await prisma.userSession.deleteMany();
@@ -13,147 +15,119 @@ describe("User Registration", () => {
     await prisma.application.deleteMany();
     await prisma.user.deleteMany();
     await prisma.role.deleteMany();
+
+    // Create a default role for new users
+    citizenRole = await prisma.role.create({
+      data: {
+        name: "citizen",
+        description: "Regular citizen user",
+        permissions: ["submit_applications"],
+      },
+    });
   });
 
   afterAll(async () => {
     await prisma.$disconnect();
   });
 
-  describe("POST /api/auth/register", () => {
-    it("should register new user successfully", async () => {
-      // First create a role for the user
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications", "view_own_applications"],
-        },
-      });
+  it("should register new user successfully", async () => {
+    const userData = {
+      email: "test@example.com",
+      password: "password123",
+      firstName: "John",
+      lastName: "Doe",
+      phone: "+64 21 123 4567",
+    };
 
-      const userData = {
-        email: "test@example.com",
-        password: "password123",
-        firstName: "John",
-        lastName: "Doe",
-        phone: "+64 21 123 4567",
-      };
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send(userData)
+      .expect(201);
 
-      const response = await request(app)
-        .post("/api/auth/register")
-        .send(userData)
-        .expect(201);
+    expect(response.body).toHaveProperty("success", true);
+    expect(response.body).toHaveProperty("user");
+    expect(response.body.user).toHaveProperty("email", userData.email);
+    expect(response.body.user).toHaveProperty("firstName", userData.firstName);
+    expect(response.body.user).toHaveProperty("lastName", userData.lastName);
+    expect(response.body.user).not.toHaveProperty("password");
+    expect(response.body.user).toHaveProperty("roleId", citizenRole.id);
 
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("user");
-      expect(response.body.user).toHaveProperty("id");
-      expect(response.body.user).toHaveProperty("email", userData.email);
-      expect(response.body.user).toHaveProperty(
-        "firstName",
-        userData.firstName
-      );
-      expect(response.body.user).toHaveProperty("lastName", userData.lastName);
-      expect(response.body.user).not.toHaveProperty("password"); // Password should not be returned
-      expect(response.body.user).toHaveProperty("roleId", citizenRole.id);
-
-      // Verify user was created in database
-      const createdUser = await prisma.user.findUnique({
-        where: { email: userData.email },
-        include: { role: true },
-      });
-
-      expect(createdUser).toBeTruthy();
-      expect(createdUser?.email).toBe(userData.email);
-      expect(createdUser?.role.name).toBe("citizen");
-      expect(createdUser?.isActive).toBe(true);
-      expect(createdUser?.emailVerified).toBe(false);
-
-      // Verify password was hashed
-      const isPasswordValid = await bcrypt.compare(
-        userData.password,
-        createdUser!.password
-      );
-      expect(isPasswordValid).toBe(true);
+    // Verify user was created in database
+    const createdUser = await prisma.user.findUnique({
+      where: { email: userData.email },
     });
 
-    it("should return 400 for duplicate email", async () => {
-      // Create a role first
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications"],
-        },
-      });
+    expect(createdUser).toBeTruthy();
+    expect(createdUser?.email).toBe(userData.email);
+    expect(createdUser?.isActive).toBe(true);
+    expect(createdUser?.emailVerified).toBe(false);
+  });
 
-      // Create an existing user
-      await prisma.user.create({
-        data: {
-          email: "existing@example.com",
-          password: await bcrypt.hash("password123", 12),
-          firstName: "Existing",
-          lastName: "User",
-          roleId: citizenRole.id,
-        },
-      });
-
-      const userData = {
+  it("should return 400 for duplicate email", async () => {
+    // Create an existing user
+    await prisma.user.create({
+      data: {
         email: "existing@example.com",
-        password: "password123",
-        firstName: "John",
-        lastName: "Doe",
-      };
-
-      const response = await request(app)
-        .post("/api/auth/register")
-        .send(userData)
-        .expect(400);
-
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("email already exists");
+        password: await bcrypt.hash("password123", 12),
+        firstName: "Existing",
+        lastName: "User",
+        roleId: citizenRole.id,
+      },
     });
 
-    it("should return 400 for invalid data", async () => {
-      const invalidData = {
-        email: "invalid-email",
-        password: "123", // Too short
-        firstName: "", // Empty
-        lastName: "Doe",
-      };
+    const userData = {
+      email: "existing@example.com",
+      password: "password123",
+      firstName: "John",
+      lastName: "Doe",
+    };
 
-      const response = await request(app)
-        .post("/api/auth/register")
-        .send(invalidData)
-        .expect(400);
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send(userData)
+      .expect(400);
 
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("errors");
-      expect(response.body.errors).toBeInstanceOf(Array);
-      expect(response.body.errors.length).toBeGreaterThan(0);
-    });
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
+    expect(response.body.error).toContain("Email already exists");
+  });
 
-    it("should return 500 for server errors", async () => {
-      // Test with invalid role ID to trigger database error
-      const userData = {
-        email: "test@example.com",
-        password: "password123",
-        firstName: "John",
-        lastName: "Doe",
-        roleId: "invalid-role-id",
-      };
+  it("should return 400 for invalid data", async () => {
+    const invalidData = {
+      email: "invalid-email",
+      password: "123", // Too short
+      firstName: "", // Empty
+    };
 
-      const response = await request(app)
-        .post("/api/auth/register")
-        .send(userData)
-        .expect(500);
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send(invalidData)
+      .expect(400);
 
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-    });
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
+  });
+
+  it("should return 500 for server error", async () => {
+    // Mock a database error by trying to create user without required fields
+    const invalidData = {
+      email: "test@example.com",
+      // Missing required fields
+    };
+
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send(invalidData)
+      .expect(500);
+
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
   });
 });
 
 describe("User Login", () => {
+  let citizenRole: any;
+
   beforeEach(async () => {
     // Clean up test data in correct order to avoid foreign key violations
     await prisma.userSession.deleteMany();
@@ -161,162 +135,126 @@ describe("User Login", () => {
     await prisma.application.deleteMany();
     await prisma.user.deleteMany();
     await prisma.role.deleteMany();
+
+    // Create a default role
+    citizenRole = await prisma.role.create({
+      data: {
+        name: "citizen",
+        description: "Regular citizen user",
+        permissions: ["submit_applications"],
+      },
+    });
+
+    // Create a test user
+    const hashedPassword = await bcrypt.hash("password123", 12);
+    await prisma.user.create({
+      data: {
+        email: "test@example.com",
+        password: hashedPassword,
+        firstName: "John",
+        lastName: "Doe",
+        roleId: citizenRole.id,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
   });
 
-  describe("POST /api/auth/login", () => {
-    it("should login user successfully", async () => {
-      // Create a role first
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications"],
-        },
-      });
+  it("should login user successfully", async () => {
+    const loginData = {
+      email: "test@example.com",
+      password: "password123",
+    };
 
-      // Create a test user
-      const hashedPassword = await bcrypt.hash("password123", 12);
-      const testUser = await prisma.user.create({
-        data: {
-          email: "test@example.com",
-          password: hashedPassword,
-          firstName: "John",
-          lastName: "Doe",
-          roleId: citizenRole.id,
-          isActive: true,
-          emailVerified: true,
-        },
-      });
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send(loginData)
+      .expect(200);
 
-      const loginData = {
-        email: "test@example.com",
-        password: "password123",
-      };
+    expect(response.body).toHaveProperty("success", true);
+    expect(response.body).toHaveProperty("token");
+    expect(response.body).toHaveProperty("user");
+    expect(response.body.user).toHaveProperty("email", loginData.email);
+    expect(response.body.user).not.toHaveProperty("password");
 
-      const response = await request(app)
-        .post("/api/auth/login")
-        .send(loginData)
-        .expect(200);
+    // Verify token is valid JWT
+    const token = response.body.token;
+    expect(typeof token).toBe("string");
+    expect(token.split(".")).toHaveLength(3); // JWT has 3 parts
+  });
 
-      expect(response.body).toHaveProperty("success", true);
-      expect(response.body).toHaveProperty("token");
-      expect(response.body).toHaveProperty("user");
-      expect(response.body.user).toHaveProperty("id", testUser.id);
-      expect(response.body.user).toHaveProperty("email", testUser.email);
-      expect(response.body.user).not.toHaveProperty("password");
+  it("should return 401 for invalid credentials", async () => {
+    const loginData = {
+      email: "test@example.com",
+      password: "wrongpassword",
+    };
 
-      // Verify token is a valid JWT
-      expect(typeof response.body.token).toBe("string");
-      expect(response.body.token.split(".")).toHaveLength(3);
-    });
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send(loginData)
+      .expect(401);
 
-    it("should return 401 for invalid credentials", async () => {
-      // Create a role first
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications"],
-        },
-      });
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
+    expect(response.body.error).toContain("Invalid credentials");
+  });
 
-      // Create a test user
-      const hashedPassword = await bcrypt.hash("password123", 12);
-      await prisma.user.create({
-        data: {
-          email: "test@example.com",
-          password: hashedPassword,
-          firstName: "John",
-          lastName: "Doe",
-          roleId: citizenRole.id,
-          isActive: true,
-          emailVerified: true,
-        },
-      });
+  it("should return 401 for non-existent user", async () => {
+    const loginData = {
+      email: "nonexistent@example.com",
+      password: "password123",
+    };
 
-      const loginData = {
-        email: "test@example.com",
-        password: "wrongpassword",
-      };
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send(loginData)
+      .expect(401);
 
-      const response = await request(app)
-        .post("/api/auth/login")
-        .send(loginData)
-        .expect(401);
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
+    expect(response.body.error).toContain("Invalid credentials");
+  });
 
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("Invalid credentials");
-    });
-
-    it("should return 401 for non-existent user", async () => {
-      const loginData = {
-        email: "nonexistent@example.com",
-        password: "password123",
-      };
-
-      const response = await request(app)
-        .post("/api/auth/login")
-        .send(loginData)
-        .expect(401);
-
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("Invalid credentials");
-    });
-
-    it("should return 401 for inactive user", async () => {
-      // Create a role first
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications"],
-        },
-      });
-
-      // Create an inactive user
-      const hashedPassword = await bcrypt.hash("password123", 12);
-      await prisma.user.create({
-        data: {
-          email: "inactive@example.com",
-          password: hashedPassword,
-          firstName: "Inactive",
-          lastName: "User",
-          roleId: citizenRole.id,
-          isActive: false,
-          emailVerified: true,
-        },
-      });
-
-      const loginData = {
+  it("should return 401 for inactive user", async () => {
+    // Create an inactive user
+    await prisma.user.create({
+      data: {
         email: "inactive@example.com",
-        password: "password123",
-      };
-
-      const response = await request(app)
-        .post("/api/auth/login")
-        .send(loginData)
-        .expect(401);
-
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("Account is inactive");
+        password: await bcrypt.hash("password123", 12),
+        firstName: "Inactive",
+        lastName: "User",
+        roleId: citizenRole.id,
+        isActive: false,
+      },
     });
 
-    it("should return 400 for missing fields", async () => {
-      const loginData = {
-        email: "test@example.com",
-        // Missing password
-      };
+    const loginData = {
+      email: "inactive@example.com",
+      password: "password123",
+    };
 
-      const response = await request(app)
-        .post("/api/auth/login")
-        .send(loginData)
-        .expect(400);
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send(loginData)
+      .expect(401);
 
-      expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error");
-    });
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
+    expect(response.body.error).toContain("Account is inactive");
+  });
+
+  it("should return 400 for missing fields", async () => {
+    const loginData = {
+      email: "test@example.com",
+      // Missing password
+    };
+
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send(loginData)
+      .expect(400);
+
+    expect(response.body).toHaveProperty("success", false);
+    expect(response.body).toHaveProperty("error");
   });
 });

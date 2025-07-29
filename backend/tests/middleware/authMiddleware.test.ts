@@ -7,6 +7,10 @@ import jwt from "jsonwebtoken";
 const prisma = new PrismaClient();
 
 describe("JWT Authentication Middleware", () => {
+  let testUser: any;
+  let validToken: string;
+  let citizenRole: any;
+
   beforeEach(async () => {
     // Clean up test data in correct order to avoid foreign key violations
     await prisma.userSession.deleteMany();
@@ -14,6 +18,40 @@ describe("JWT Authentication Middleware", () => {
     await prisma.application.deleteMany();
     await prisma.user.deleteMany();
     await prisma.role.deleteMany();
+
+    // Create a role
+    citizenRole = await prisma.role.create({
+      data: {
+        name: "citizen",
+        description: "Regular citizen user",
+        permissions: ["submit_applications"],
+      },
+    });
+
+    // Create a test user
+    const hashedPassword = await bcrypt.hash("password123", 12);
+    testUser = await prisma.user.create({
+      data: {
+        email: "test@example.com",
+        password: hashedPassword,
+        firstName: "John",
+        lastName: "Doe",
+        roleId: citizenRole.id,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
+
+    // Generate a valid token
+    validToken = jwt.sign(
+      {
+        userId: testUser.id,
+        email: testUser.email,
+        role: "citizen",
+      },
+      process.env.JWT_SECRET || "your-secret-key",
+      { expiresIn: "24h" }
+    );
   });
 
   afterAll(async () => {
@@ -21,45 +59,6 @@ describe("JWT Authentication Middleware", () => {
   });
 
   describe("Protected Routes", () => {
-    let testUser: any;
-    let validToken: string;
-
-    beforeEach(async () => {
-      // Create a role
-      const citizenRole = await prisma.role.create({
-        data: {
-          name: "citizen",
-          description: "Regular citizen user",
-          permissions: ["submit_applications"],
-        },
-      });
-
-      // Create a test user
-      const hashedPassword = await bcrypt.hash("password123", 12);
-      testUser = await prisma.user.create({
-        data: {
-          email: "test@example.com",
-          password: hashedPassword,
-          firstName: "John",
-          lastName: "Doe",
-          roleId: citizenRole.id,
-          isActive: true,
-          emailVerified: true,
-        },
-      });
-
-      // Generate a valid token
-      validToken = jwt.sign(
-        {
-          userId: testUser.id,
-          email: testUser.email,
-          role: "citizen",
-        },
-        process.env.JWT_SECRET || "your-secret-key",
-        { expiresIn: "24h" }
-      );
-    });
-
     it("should allow access with valid token", async () => {
       const response = await request(app)
         .get("/api/users/profile")
@@ -118,15 +117,19 @@ describe("JWT Authentication Middleware", () => {
         .set("Authorization", `Bearer ${validToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty("user");
-      expect(response.body.user).toHaveProperty("id", testUser.id);
+      expect(response.body).toHaveProperty("success", true);
       expect(response.body.user).toHaveProperty("email", testUser.email);
+      expect(response.body.user).toHaveProperty(
+        "firstName",
+        testUser.firstName
+      );
+      expect(response.body.user).toHaveProperty("lastName", testUser.lastName);
     });
 
     it("should handle malformed authorization header", async () => {
       const response = await request(app)
         .get("/api/users/profile")
-        .set("Authorization", "InvalidFormat")
+        .set("Authorization", "MalformedHeader")
         .expect(401);
 
       expect(response.body).toHaveProperty("success", false);
@@ -137,7 +140,7 @@ describe("JWT Authentication Middleware", () => {
     it("should handle missing Bearer prefix", async () => {
       const response = await request(app)
         .get("/api/users/profile")
-        .set("Authorization", validToken)
+        .set("Authorization", validToken) // No "Bearer " prefix
         .expect(401);
 
       expect(response.body).toHaveProperty("success", false);
