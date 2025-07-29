@@ -10,6 +10,7 @@ import { notFoundHandler } from "./middleware/notFoundHandler";
 import { permitRoutes } from "./routes/permitRoutes";
 import { councilRoutes } from "./routes/councilRoutes";
 import { userRoutes } from "./routes/userRoutes";
+import { authRoutes } from "./routes/authRoutes";
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +54,7 @@ app.get("/health", (_req, res) => {
 });
 
 // API routes
+app.use("/api/auth", authRoutes);
 app.use("/api/permits", permitRoutes);
 app.use("/api/councils", councilRoutes);
 app.use("/api/users", userRoutes);

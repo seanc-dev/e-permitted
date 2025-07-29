@@ -1,9 +1,60 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Starting database seeding...");
+
+  // Create roles
+  const roles = await Promise.all([
+    prisma.role.upsert({
+      where: { name: "citizen" },
+      update: {},
+      create: {
+        name: "citizen",
+        description: "Regular citizen user",
+        permissions: [
+          "submit_applications",
+          "view_own_applications",
+          "edit_profile",
+        ],
+      },
+    }),
+    prisma.role.upsert({
+      where: { name: "council_staff" },
+      update: {},
+      create: {
+        name: "council_staff",
+        description: "Council staff member",
+        permissions: [
+          "view_applications",
+          "process_applications",
+          "update_application_status",
+          "view_reports",
+        ],
+      },
+    }),
+    prisma.role.upsert({
+      where: { name: "admin" },
+      update: {},
+      create: {
+        name: "admin",
+        description: "System administrator",
+        permissions: [
+          "manage_users",
+          "manage_roles",
+          "view_all_applications",
+          "system_configuration",
+        ],
+      },
+    }),
+  ]);
+
+  console.log(
+    "✅ Created roles:",
+    roles.map((r) => r.name)
+  );
 
   // Create Kapiti Coast District Council
   const council = await prisma.council.upsert({
@@ -134,39 +185,94 @@ async function main() {
     permitTypes.map((pt) => pt.name)
   );
 
-  // Create a test user
-  const testUser = await prisma.user.upsert({
-    where: { email: "test@example.com" },
-    update: {},
-    create: {
-      email: "test@example.com",
-      firstName: "John",
-      lastName: "Doe",
-      phone: "+64 21 123 4567",
-      address: {
-        street: "123 Main Street",
-        city: "Paraparaumu",
-        postalCode: "5032",
-        region: "Wellington",
-        country: "NZ",
+  // Hash password for test users
+  const hashedPassword = await bcrypt.hash("password123", 12);
+
+  // Create test users
+  const testUsers = await Promise.all([
+    prisma.user.upsert({
+      where: { email: "citizen@example.com" },
+      update: {},
+      create: {
+        email: "citizen@example.com",
+        password: hashedPassword,
+        firstName: "John",
+        lastName: "Citizen",
+        phone: "+64 21 123 4567",
+        address: {
+          street: "123 Main Street",
+          city: "Paraparaumu",
+          postalCode: "5032",
+          region: "Wellington",
+          country: "NZ",
+        },
+        roleId: roles[0].id, // citizen role
+        isActive: true,
+        emailVerified: true,
       },
-    },
-  });
-  console.log("✅ Created test user:", testUser.email);
+    }),
+    prisma.user.upsert({
+      where: { email: "staff@example.com" },
+      update: {},
+      create: {
+        email: "staff@example.com",
+        password: hashedPassword,
+        firstName: "Jane",
+        lastName: "Staff",
+        phone: "+64 21 234 5678",
+        address: {
+          street: "456 Council Road",
+          city: "Paraparaumu",
+          postalCode: "5032",
+          region: "Wellington",
+          country: "NZ",
+        },
+        roleId: roles[1].id, // council_staff role
+        isActive: true,
+        emailVerified: true,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: "admin@example.com" },
+      update: {},
+      create: {
+        email: "admin@example.com",
+        password: hashedPassword,
+        firstName: "Admin",
+        lastName: "User",
+        phone: "+64 21 345 6789",
+        address: {
+          street: "789 Admin Street",
+          city: "Paraparaumu",
+          postalCode: "5032",
+          region: "Wellington",
+          country: "NZ",
+        },
+        roleId: roles[2].id, // admin role
+        isActive: true,
+        emailVerified: true,
+      },
+    }),
+  ]);
+
+  console.log(
+    "✅ Created test users:",
+    testUsers.map((u) => u.email)
+  );
 
   // Create a sample application
   const sampleApplication = await prisma.application.create({
     data: {
       reference: "KCDC-2024-00001",
       status: "SUBMITTED",
-      userId: testUser.id,
+      userId: testUsers[0].id, // citizen user
       councilId: council.id,
       permitTypeId: permitTypes[0].id, // Building consent
       data: {
         applicant: {
           firstName: "John",
-          lastName: "Doe",
-          email: "test@example.com",
+          lastName: "Citizen",
+          email: "citizen@example.com",
           phone: "+64 21 123 4567",
         },
         property: {
@@ -194,9 +300,14 @@ async function main() {
   console.log("🎉 Database seeding completed successfully!");
   console.log("\n📊 Summary:");
   console.log(`- Council: ${council.name}`);
+  console.log(`- Roles: ${roles.length}`);
   console.log(`- Permit Types: ${permitTypes.length}`);
-  console.log(`- Test User: ${testUser.email}`);
+  console.log(`- Test Users: ${testUsers.length}`);
   console.log(`- Sample Application: ${sampleApplication.reference}`);
+  console.log("\n🔑 Test Credentials:");
+  console.log("Citizen: citizen@example.com / password123");
+  console.log("Staff: staff@example.com / password123");
+  console.log("Admin: admin@example.com / password123");
 }
 
 main()
